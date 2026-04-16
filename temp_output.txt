@@ -1,0 +1,74 @@
+校园闲置物品交换平台
+摘要
+本论文详细阐述了一个基于Go语言的Gin框架和MySQL 8.0数据库构建的校园闲置物品交换平台，前端采用Vue 3框架进行开发。该平台旨在为校园师生提供便捷的闲置物品交易与交换服务，优化校园内闲置资源的流通流程。后端部分，运用Gin框架设计了高效的RESTful API，实现了用户注册登录、物品发布与查询、交换状态流转以及基于WebSocket的实时聊天等功能。通过中间件机制保障了路由的安全性和稳定性，如JWT鉴权、跨域处理等。数据库采用MySQL 8.0存储用户信息、物品信息、交换记录及聊天数据，并引入Redis提升高频访问的响应速度。前端使用Vue 3结合Element Plus构建了响应式用户界面，提供了简洁易用的操作体验。经测试，该平台具有良好的性能和稳定性，能够有效满足校园内的物品交换需求，为绿色校园建设提供技术支持。
+关键词：校园闲置物品交换平台；Gin框架；MySQL 8.0；Vue 3；RESTful API；WebSocket
+ABSTRACT
+This paper elaborates on a campus idle goods exchange platform built on the Gin framework of the Go language and the MySQL 8.0 database, with the front-end developed using the Vue 3 framework. The platform aims to provide convenient idle goods trading and exchange services for campus teachers and students, optimizing the circulation process of idle resources on campus. In the back-end part, an efficient RESTful API is designed using the Gin framework to realize functions such as user registration and login, item publishing and querying, exchange status transfer, and real-time chat based on WebSocket. The middleware mechanism ensures the security and stability of routing, such as JWT authentication and cross-domain processing. The MySQL 8.0 database is used to store user information, item information, exchange records, and chat data, and Redis is introduced to improve the response speed of high-frequency access. The front-end uses Vue 3 combined with Element Plus to build a responsive user interface. After testing, the platform has good performance and stability, can effectively meet the needs of item exchange on campus.
+Keywords: Campus idle goods exchange platform; Gin framework; MySQL 8.0; Vue 3; RESTful API; WebSocket
+1 绪论
+1.1 研究背景及意义
+1.1.1 研究背景
+随着高校学生群体规模持续扩大，学生在校期间购买的各类生活用品、书籍教材等日益增多。随着毕业离校或个人兴趣变化，大量尚有使用价值的物品处于闲置状态。传统的张贴告示、跳蚤市场等方式信息传播慢且范围窄，导致闲置物品难以高效流转。如今数字化校园建设如火如荼，结合Go语言的高并发特性与Vue前端框架的优势，开发高效的校园闲置物品交换平台成为可能。
+1.1.2 意义
+提升流转效率：平台能让闲置物品信息快速传播，使物品更快找到新主人，提高匹配效率。优化资源管理：实现闲置物品信息自动化管理，减少资源浪费，响应绿色环保号召。增强校园社交：通过即时通讯和物品交换，增强校园内师生间的信任与联系。推动技术应用：验证微服务架构与实时通讯技术在实际校园项目中的可行性。
+1.2 国内外研究现状
+1.2.1 国内研究现状
+近年来，国内高校积极推进数字化校园建设，许多学校开发了二手交易平台。多数平台采用Web或移动应用的形式。然而，部分国内平台存在功能单一、缺乏社交互动（如物物交换、实时聊天）的问题。此外，针对高并发场景的性能优化和系统安全保障方面还有待进一步提升。
+1.2.2 国外研究现状与分析
+国外在校园数字化服务系统搭建方面起步较早，部分高校拥有成熟的综合服务平台，注重“共享”与“赠予”理念。他们借助大数据分析，精准为物品和需求者配对，且在用户体验和隐私保护方面采用了先进的技术保障。
+2 相关技术
+2.1 前端技术
+前端采用Vue 3框架进行搭建。Vue 3具有Composition API、响应式系统性能优越等特点，结合Vite构建工具与Element Plus组件库，能为用户提供流畅、美观的交互界面。
+2.2 后端技术
+后端采用Go语言的Gin框架构建，通过JWT中间件实现身份验证，保障接口安全性。设计RESTful API管理路由，涵盖用户认证、物品管理、交换流程以及基于WebSocket的实时聊天功能，提供稳定高效的后端服务。
+2.3 数据库技术
+核心数据存储采用MySQL 8.0，设计了用户表、物品信息表、交换记录表与聊天记录表，通过GORM进行数据持久化操作。同时引入Redis 6.0作为缓存数据库，用于存储热点数据和会话状态，极大提升了系统响应速度。
+3 需求分析
+3.1 用例分析（用例模型）
+系统主要分为未登录用户（游客）、登录用户（普通用户）和管理员三类角色。
+未登录用户：可进行登录、注册操作，能够浏览首页物品列表，查看物品基本信息，并支持关键词和分类搜索。
+登录用户：在游客功能基础上，可发布闲置物品（支持售卖或交换）、查看物品详细信息、更新个人资料、发起或处理交换请求、进入聊天室与发布者实时沟通、收藏物品及发表评论。
+管理员：具备最高权限，可通过后台系统获取用户列表并进行封禁等管理操作，可审核和删除违规物品，处理用户举报，维护平台良好秩序。
+3.2 交互分析（交互模型）
+3.2.1 用户注册登录流程
+用户访问注册页面填写账号、密码、邮箱等信息提交，后端校验通过后完成注册；登录时输入凭证，系统验证无误后下发JWT Token并跳转至系统首页。
+3.2.2 物品发布与查询流程
+用户点击发布按钮，上传图片并填写物品标题、描述、类型（售卖/交换）、价格等信息，提交后台审核与保存；查询时，用户通过搜索框或分类栏输入条件，系统从MySQL或Redis中检索匹配数据并返回展示。
+3.2.3 聊天与交换流程
+用户对某物品感兴趣时，可点击“发起交换”进入状态机流转（待处理->已接受/已拒绝->已完成）；也可点击“聊天”通过WebSocket建立全双工连接，实时发送文字、图片或商品卡片。
+3.3 分析类
+3.3.1 核心类职责
+User：存储用户基础信息及认证数据，是各类业务流程的发起主体。Goods：承载物品的核心信息（标题、图片、价格、状态等），用于展示与检索。Exchange：记录物品交换的请求、目标、状态及时间轨迹，支撑物物交换业务。Message / Hub：整合聊天场景的数据，管理WebSocket在线客户端并分发消息。
+3.3.2 类间关系
+User与Goods为1对多关系，用户可发布多个物品；Goods与Category为多对1关系；Exchange关联发起人、目标用户及目标物品；Message关联发送者与接收者，多条消息隶属于相同的用户间交互。
+4 总体设计
+4.1 体系结构设计
+系统采用前后端分离的N层架构。客户端层为Vue 3构建的Web应用；网关层使用Nginx进行反向代理与静态资源分发；应用服务层基于Gin框架，划分为Handler（请求处理）、Logic（业务逻辑）、Model（数据交互）三层；数据层由MySQL与Redis构成。
+4.2 功能结构设计
+包含以下核心模块：1. 用户模块：注册、登录、个人中心、信誉分管理。2. 物品模块：分类、发布、搜索、详情展示。3. 交换模块：交换发起、状态流转确认。4. 聊天模块：WebSocket连接管理、离线消息、历史记录。5. 后台管理模块：用户封禁、违规物品下架。
+4.3 关键核心类设计
+用户与认证模块：User模型映射数据库，Login/Register DTO封装请求参数，JWT工具类生成与解析Token。失物招领（物品交换）模块：Goods模型存储详细信息，利用GORM的钩子函数自动处理时间戳。聊天模块：Hub类维护Clients映射表，管理注册、注销和广播通道；Client类封装WebSocket连接与收发协程。
+4.4 数据库设计
+4.4.1 数据库表
+系统设计了11张核心数据表，主要包括：- user表：id, username, password, email, status, credit_score, create_time等。- goods表：id, title, description, user_id, category_id, type(售卖/交换), status, images, create_time等。- exchange表：id, initiator_id, target_id, goods_id, status, create_time等。- message表：id, sender_id, receiver_id, content, type, is_read, create_time等。
+5 详细设计与实现
+5.1 游客功能
+注册/登录：前端对输入格式进行预校验，后端调用bcrypt加密密码并比对，登录成功返回JWT Token存入localStorage。首页浏览：采用瀑布流布局展示最新发布的闲置物品，支持按分类或成色筛选。
+5.2 普通用户功能
+发布物品：前端集成Element Plus的Upload组件支持多图上传至服务器，填入信息后提交GoodsCreateDTO。聊天室：建立WebSocket连接，接收方若在线则直接通过通道推送，否则将消息入库并标记为未读。交换处理：发起交换时生成记录，被请求方在个人中心接收到通知并可点击“接受”或“拒绝”，状态机更新对应status字段。
+5.3 管理员功能
+后台提供数据仪表盘，展示用户数、交易量等统计。用户列表支持条件检索，发现违规操作可调用禁用接口更新user表的status字段，或直接物理/逻辑删除违规物品数据。
+6 测试
+6.1 测试概述与环境
+测试环境：Windows 11, Chrome浏览器, Postman, JMeter。涵盖功能逻辑验证、并发压力测试及安全漏洞扫描。
+6.2 测试功能模块与用例
+聊天室功能：测试正常发送图文消息，测试发送超大图片（断言失败提示），并发100人测试消息延迟。物品新增功能：测试必填项缺失时的表单拦截，测试图片格式验证。登录注册功能：测试防SQL注入拦截，密码错误次数限制机制。
+6.3 测试结论
+经过全面测试，系统各项功能模块均符合预期设计，响应时间满足需求，安全防护机制有效，系统具备上线运行条件。
+7 结论与展望
+7.1 总结
+本项目成功实现了一个基于Go和Vue 3的校园闲置物品交换平台。通过严谨的需求分析与架构设计，结合MySQL与Redis，解决了传统校园二手交易效率低、沟通不畅的问题，实现了安全、高效的在线交易与物物交换。
+7.2 展望
+未来可进一步引入智能推荐算法为用户精准推送物品，开发微信小程序或App版本以提升移动端体验，并对接校园一卡通实现更权威的身份认证与信用体系。
+参考文献
+[1] 柴树杉，曹春晖. Go 语言高级编程 [M]. 北京：人民邮电出版社，2022.[2] 尤雨溪. Vue.js 设计与实现 [M]. 人民邮电出版社, 2022.[3] 谭浩强. 软件工程（第 4 版）[M]. 北京：清华大学出版社，2024.[4] 叶金荣. MySQL 8.0 从入门到精通 [M]. 北京：电子工业出版社，2022.[5] 王磊，李华. 基于 Gin 框架的高并发 Web 服务设计与实现 [J]. 计算机应用研究，2023, 40 (5): 123-127.
