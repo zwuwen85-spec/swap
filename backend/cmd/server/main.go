@@ -120,6 +120,7 @@ func main() {
 				message.GET("/list", messageHandler.GetMessageList)
 				message.GET("/conversations", messageHandler.GetConversations)
 				message.GET("/unread-count", messageHandler.GetUnreadCount)
+				message.GET("/online-status", messageHandler.CheckOnline)
 				message.POST("/send", messageHandler.SendMessage)
 			}
 
@@ -177,6 +178,7 @@ func main() {
 
 		// WebSocket接口
 		ws := v1.Group("/ws")
+		ws.Use(middleware.Auth(serviceCtx.Config.GetString("jwt.secret")))
 		{
 			ws.GET("/chat", func(c *gin.Context) {
 				// WebSocket连接需要JWT认证

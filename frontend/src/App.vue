@@ -5,7 +5,36 @@
 </template>
 
 <script setup>
-// 根组件
+import { onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useUserStore } from '@/store/user'
+
+const route = useRoute()
+const userStore = useUserStore()
+
+// 监听路由变化，自动刷新未读消息数
+watch(
+  () => route.path,
+  () => {
+    if (userStore.isLogin) {
+      userStore.fetchUnreadCount()
+    }
+  }
+)
+
+onMounted(() => {
+  if (userStore.isLogin) {
+    userStore.fetchUnreadCount()
+    userStore.initWebSocket()
+  }
+  
+  // 定时刷新未读消息数
+  setInterval(() => {
+    if (userStore.isLogin) {
+      userStore.fetchUnreadCount()
+    }
+  }, 30000)
+})
 </script>
 
 <style>

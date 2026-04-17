@@ -8,6 +8,11 @@
           <div class="nav">
             <router-link to="/">首页</router-link>
             <router-link to="/goods">商品列表</router-link>
+            <router-link to="/chat">
+              <el-badge :value="userStore.unreadMessageCount" :hidden="userStore.unreadMessageCount === 0" :max="99" class="nav-badge">
+                消息
+              </el-badge>
+            </router-link>
             <router-link to="/profile" class="active">个人中心</router-link>
             <a @click="handleLogout">退出</a>
           </div>

@@ -49,6 +49,7 @@ type UnreadCountResponse struct {
 type Conversation struct {
 	UserID      int64  `json:"user_id"`
 	Username    string `json:"username"`
+	Nickname    string `json:"nickname"`
 	Avatar      string `json:"avatar"`
 	LastMessage string `json:"last_message"`
 	UnreadCount int64  `json:"unread_count"`

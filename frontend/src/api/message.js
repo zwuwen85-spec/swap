@@ -33,3 +33,12 @@ export function getUnreadCount() {
     method: 'get'
   })
 }
+
+// 检查对方是否在线
+export function checkOnline(userId) {
+  return request({
+    url: '/message/online-status',
+    method: 'get',
+    params: { user_id: userId }
+  })
+}

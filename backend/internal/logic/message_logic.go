@@ -109,11 +109,8 @@ func (l *MessageLogic) GetMessageList(ctx context.Context, userID1, userID2 int6
 // GetConversations 获取会话列表（最近聊天的用户）
 func (l *MessageLogic) GetConversations(ctx context.Context, userID int64) ([]*model.Conversation, error) {
 	type Result struct {
-		UserID      int64
-		Username    string
-		Avatar      string
-		LastMessage string
-		UpdateTime  int64
+		UserID     int64
+		UpdateTime int64
 	}
 
 	var results []*Result
@@ -122,18 +119,17 @@ func (l *MessageLogic) GetConversations(ctx context.Context, userID int64) ([]*m
 	query := `
 		SELECT
 			CASE
-				WHEN m.sender_id = ? THEN m.receiver_id
-				ELSE m.sender_id
+				WHEN sender_id = ? THEN receiver_id
+				ELSE sender_id
 			END AS user_id,
-			MAX(m.create_time) as update_time,
-			SUBSTRING_INDEX(m.content, 1, 50) as last_message
-		FROM message m
-		WHERE m.sender_id = ? OR m.receiver_id = ?
-		GROUP BY user_id
+			MAX(create_time) as update_time
+		FROM message
+		WHERE sender_id = ? OR receiver_id = ?
+		GROUP BY 1
 		ORDER BY update_time DESC
 	`
 
-	if err := l.db.WithContext(ctx).Raw(query, userID, userID).Scan(&results).Error; err != nil {
+	if err := l.db.WithContext(ctx).Raw(query, userID, userID, userID).Scan(&results).Error; err != nil {
 		return nil, err
 	}
 
@@ -146,17 +142,32 @@ func (l *MessageLogic) GetConversations(ctx context.Context, userID int64) ([]*m
 			continue
 		}
 
+		// 查询最后一条消息内容
+		var lastMsg model.Message
+		l.db.WithContext(ctx).
+			Where("(sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)", userID, result.UserID, result.UserID, userID).
+			Order("id DESC").
+			First(&lastMsg)
+
 		// 查询未读数
 		var unreadCount int64
 		l.db.WithContext(ctx).Model(&model.Message{}).
 			Where("sender_id = ? AND receiver_id = ? AND is_read = 0", result.UserID, userID).
 			Count(&unreadCount)
 
+		// 截取最后一条消息的前50个字符
+		lastMessageContent := lastMsg.Content
+		runes := []rune(lastMessageContent)
+		if len(runes) > 50 {
+			lastMessageContent = string(runes[:50]) + "..."
+		}
+
 		conversations = append(conversations, &model.Conversation{
 			UserID:      user.ID,
 			Username:    user.Username,
+			Nickname:    stringValue(user.Nickname),
 			Avatar:      stringValue(user.Avatar),
-			LastMessage: result.LastMessage,
+			LastMessage: lastMessageContent,
 			UnreadCount: unreadCount,
 			UpdateTime:  result.UpdateTime,
 		})
@@ -186,7 +197,7 @@ func (l *MessageLogic) GetUnreadCount(ctx context.Context, userID int64) (*model
 
 	// 每个用户的未读数
 	type Result struct {
-		SenderID     int64
+		SenderID    int64
 		UnreadCount int64
 	}
 
