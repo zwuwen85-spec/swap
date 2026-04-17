@@ -8,7 +8,11 @@
           <div class="nav">
             <router-link to="/">首页</router-link>
             <router-link to="/goods">商品列表</router-link>
-            <router-link to="/chat" class="active">消息</router-link>
+            <router-link to="/chat" class="active">
+              <el-badge :value="userStore.unreadMessageCount" :hidden="userStore.unreadMessageCount === 0" :max="99" class="nav-badge">
+                消息
+              </el-badge>
+            </router-link>
             <router-link to="/publish">发布商品</router-link>
             <router-link to="/profile">个人中心</router-link>
             <a @click="handleLogout">退出</a>
@@ -22,8 +26,8 @@
           <!-- 标题和未读数 -->
           <div class="header">
             <h2>消息列表</h2>
-            <el-badge :value="totalUnread" :hidden="totalUnread === 0">
-              <span>未读消息</span>
+            <el-badge :value="userStore.unreadMessageCount" :hidden="userStore.unreadMessageCount === 0">
+              <span class="unread-text">未读消息</span>
             </el-badge>
           </div>
 
@@ -37,15 +41,21 @@
               class="conversation-item"
               @click="goChat(conv)"
             >
-              <el-avatar :size="50" :src="conv.avatar">
-                {{ conv.username?.[0] || '?' }}
-              </el-avatar>
-              <div class="conv-info">
-                <div class="username">{{ conv.nickname || conv.username }}</div>
-                <div class="last-message">{{ conv.last_message || '暂无消息' }}</div>
-                <div class="meta">
+              <div class="avatar-wrapper">
+                <el-avatar :size="54" :src="conv.avatar" class="conv-avatar">
+                  {{ (conv.nickname || conv.username)?.[0] || '?' }}
+                </el-avatar>
+              </div>
+              <div class="conv-content">
+                <div class="conv-header">
+                  <span class="username">{{ conv.nickname || conv.username }}</span>
                   <span class="time">{{ formatTime(conv.update_time) }}</span>
-                  <el-badge v-if="conv.unread_count > 0" :value="conv.unread_count" />
+                </div>
+                <div class="conv-footer">
+                  <span class="last-message">{{ conv.last_message || '暂无消息' }}</span>
+                  <div v-if="conv.unread_count > 0" class="msg-badge-wrapper">
+                    <span class="custom-badge">{{ conv.unread_count > 99 ? '99+' : conv.unread_count }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -57,10 +67,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/user'
-import { getConversations, getUnreadCount } from '@/api/message'
+import { getConversations } from '@/api/message'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
@@ -68,7 +78,6 @@ const userStore = useUserStore()
 
 const loading = ref(false)
 const conversations = ref([])
-const totalUnread = ref(0)
 
 // 获取会话列表
 const fetchConversations = async () => {
@@ -83,18 +92,25 @@ const fetchConversations = async () => {
   }
 }
 
+// 监听全局 WebSocket 传来的最新消息，以便实时刷新会话列表
+watch(() => userStore.latestMessage, (newMsg) => {
+  if (newMsg) {
+    fetchConversations()
+  }
+})
+
 // 获取未读数
 const fetchUnreadCount = async () => {
-  try {
-    const res = await getUnreadCount()
-    totalUnread.value = res.data.total
-  } catch (error) {
-    console.error('获取未读数失败:', error)
-  }
+  await userStore.fetchUnreadCount()
 }
 
 // 进入聊天
 const goChat = (conv) => {
+  // 乐观更新未读数量
+  if (conv.unread_count > 0) {
+    userStore.unreadMessageCount -= conv.unread_count
+    conv.unread_count = 0
+  }
   router.push(`/chat/${conv.user_id}`)
 }
 
@@ -129,30 +145,28 @@ const formatTime = (timestamp) => {
 
 onMounted(() => {
   fetchConversations()
-  fetchUnreadCount()
-
-  // 定时刷新未读数
-  const interval = setInterval(() => {
-    fetchUnreadCount()
-  }, 30000) // 30秒
-
-  // 组件卸载时清除定时器
-  return () => {
-    clearInterval(interval)
-  }
+  userStore.fetchUnreadCount()
 })
 </script>
 
 <style scoped>
 .chat-list {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background-color: #f5f7fa;
+}
+
+.el-container {
+  height: 100%;
 }
 
 .el-header {
   background-color: #409eff;
   color: white;
   padding: 0 20px;
+  height: 60px;
+  flex-shrink: 0;
 }
 
 .header-content {
@@ -186,68 +200,163 @@ onMounted(() => {
 }
 
 .el-main {
-  max-width: 800px;
+  width: 50%;
+  min-width: 600px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 0;
+  height: calc(100vh - 60px);
 }
 
 .chat-card {
-  padding: 20px;
+  height: 100%;
+  border-radius: 0;
+  overflow: hidden;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.04) !important;
+  display: flex;
+  flex-direction: column;
+  border: none;
+}
+
+/* 覆盖 el-card 默认 padding */
+:deep(.el-card__body) {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
 }
 
 .chat-card .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f2f5;
+  background-color: #fff;
+  flex-shrink: 0;
+}
+
+.chat-card .header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #303133;
+  font-weight: 600;
+}
+
+.unread-text {
+  color: #909399;
+  font-size: 13px;
+  margin-right: 8px;
 }
 
 .conversation-list {
-  min-height: 400px;
+  flex: 1;
+  overflow-y: auto;
+  background: #fff;
 }
 
 .conversation-item {
   display: flex;
-  gap: 15px;
-  padding: 15px 10px;
-  border-bottom: 1px solid #ebeef5;
+  align-items: center;
+  padding: 16px 24px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.conversation-item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 94px;
+  right: 0;
+  height: 1px;
+  background-color: #f0f2f5;
+}
+
+.conversation-item:last-child::after {
+  display: none;
 }
 
 .conversation-item:hover {
   background-color: #f5f7fa;
 }
 
-.conv-info {
+.avatar-wrapper {
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+
+.conv-avatar {
+  border: 1px solid #ebeef5;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.conv-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.conv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
 }
 
 .username {
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   color: #303133;
-  margin-bottom: 5px;
-}
-
-.last-message {
-  font-size: 14px;
-  color: #606266;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 5px;
+  max-width: 70%;
 }
 
 .time {
   font-size: 12px;
   color: #909399;
+  flex-shrink: 0;
+}
+
+.conv-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.last-message {
+  font-size: 14px;
+  color: #909399;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 16px;
+}
+
+.msg-badge-wrapper {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-badge {
+  background-color: #f56c6c;
+  color: #fff;
+  font-size: 12px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-weight: bold;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1px #fff;
 }
 </style>

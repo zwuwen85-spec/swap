@@ -9,6 +9,11 @@
             <router-link to="/">首页</router-link>
             <router-link to="/goods" class="active">商品列表</router-link>
             <template v-if="userStore.isLogin">
+              <router-link to="/chat">
+                <el-badge :value="userStore.unreadMessageCount" :hidden="userStore.unreadMessageCount === 0" :max="99" class="nav-badge">
+                  消息
+                </el-badge>
+              </router-link>
               <router-link to="/exchange">我的交换</router-link>
               <router-link to="/my-goods">我的发布</router-link>
               <router-link to="/publish">发布商品</router-link>

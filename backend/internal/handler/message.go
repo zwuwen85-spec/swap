@@ -54,18 +54,20 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	// 如果接收者在线，通过WebSocket推送
 	if h.wsManager.IsOnline(req.ReceiverID) {
 		wsMessage := &websocket.Message{
-			Type:      "message",
-			SenderID:  message.SenderID,
+			Type:       "message",
+			SenderID:   message.SenderID,
 			ReceiverID: message.ReceiverID,
-			Content:   message.Content,
-			Timestamp: message.CreateTime,
+			Content:    message.Content,
+			Timestamp:  message.CreateTime,
 		}
 
 		sent := h.wsManager.SendToUser(req.ReceiverID, wsMessage)
-		if sent {
-			// 实时推送成功，标记为已读
-			h.messageLogic.MarkAsRead(c.Request.Context(), message.SenderID, message.ReceiverID)
-		}
+		// 注释掉自动标记为已读的逻辑
+		// if sent {
+		// 	// 实时推送成功，标记为已读
+		// 	h.messageLogic.MarkAsRead(c.Request.Context(), message.SenderID, message.ReceiverID)
+		// }
+		_ = sent
 	}
 
 	response.SuccessWithMessage(c, "发送成功", gin.H{
@@ -107,18 +109,8 @@ func (h *MessageHandler) GetMessageList(c *gin.Context) {
 		return
 	}
 
-	// 标记为已读
-	if total > 0 {
-		// 判断哪个是发送者
-		var senderID int64
-		if userID.(int64) > targetID {
-			senderID = targetID
-		} else {
-			senderID = userID.(int64)
-		}
-
-		h.messageLogic.MarkAsRead(c.Request.Context(), senderID, userID.(int64))
-	}
+	// 标记为已读：把对方(targetID)发给我(userID)的消息标记为已读
+	h.messageLogic.MarkAsRead(c.Request.Context(), targetID, userID.(int64))
 
 	if page < 1 {
 		page = 1
@@ -161,4 +153,21 @@ func (h *MessageHandler) GetUnreadCount(c *gin.Context) {
 	}
 
 	response.Success(c, count)
+}
+
+// CheckOnline 检查用户是否在线
+func (h *MessageHandler) CheckOnline(c *gin.Context) {
+	targetIDStr := c.Query("user_id")
+	if targetIDStr == "" {
+		response.Error(c, response.CodeParamError, "缺少用户ID")
+		return
+	}
+	targetID, err := strconv.ParseInt(targetIDStr, 10, 64)
+	if err != nil {
+		response.Error(c, response.CodeParamError, "用户ID格式错误")
+		return
+	}
+
+	isOnline := h.wsManager.IsOnline(targetID)
+	response.Success(c, gin.H{"is_online": isOnline})
 }

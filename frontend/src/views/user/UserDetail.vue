@@ -77,6 +77,11 @@
                   <div class="detail-section">
                     <h4 class="section-title">联系方式</h4>
                     <div class="info-list">
+                      <div class="info-item" v-if="userStore.isLogin && userStore.userId !== userInfo.id">
+                        <el-button type="primary" size="small" @click="goToChat(userInfo.id)">
+                          <el-icon><ChatDotRound /></el-icon>发私信
+                        </el-button>
+                      </div>
                       <div class="info-item" v-if="userInfo.phone">
                         <el-icon class="info-icon"><Phone /></el-icon>
                         <span class="info-label">手机</span>
@@ -270,6 +275,11 @@ const fetchUserGoods = async (userId) => {
 // 跳转到商品详情
 const goToGoods = (goodsId) => {
   router.push(`/goods/${goodsId}`)
+}
+
+// 跳转到私聊
+const goToChat = (userId) => {
+  router.push(`/chat/${userId}`)
 }
 
 const goHome = () => {

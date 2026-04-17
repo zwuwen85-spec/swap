@@ -8,6 +8,11 @@
             <router-link to="/">首页</router-link>
             <router-link to="/goods">商品列表</router-link>
             <template v-if="userStore.isLogin">
+              <router-link to="/chat">
+                <el-badge :value="userStore.unreadMessageCount" :hidden="userStore.unreadMessageCount === 0" :max="99" class="nav-badge">
+                  消息
+                </el-badge>
+              </router-link>
               <router-link to="/exchange">我的交换</router-link>
               <router-link to="/profile">个人中心</router-link>
               <a @click="handleLogout">退出</a>
@@ -48,6 +53,7 @@
 <script setup>
 import { useUserStore } from '@/store/user'
 import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
 
 const userStore = useUserStore()
 const router = useRouter()
@@ -56,6 +62,12 @@ const handleLogout = () => {
   userStore.logout()
   router.push('/login')
 }
+
+onMounted(() => {
+  if (userStore.isLogin) {
+    userStore.fetchUnreadCount()
+  }
+})
 </script>
 
 <style scoped>

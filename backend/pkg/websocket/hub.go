@@ -69,12 +69,11 @@ func (h *Hub) Run() {
 // register 注册客户端
 func (h *Hub) register(client *Client) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	h.Clients[client.ID] = client
 	log.Printf("[WebSocket] 用户 %d 上线，当前在线人数: %d", client.ID, len(h.Clients))
+	h.mu.Unlock()
 
-	// 广播上线消息
+	// 广播上线消息（在解锁后进行，避免死锁）
 	h.broadcast(&Message{
 		Type:      "status",
 		UserID:    client.ID,
@@ -86,20 +85,21 @@ func (h *Hub) register(client *Client) {
 // unregister 注销客户端
 func (h *Hub) unregister(client *Client) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	if _, ok := h.Clients[client.ID]; ok {
 		delete(h.Clients, client.ID)
 		close(client.Send)
 		log.Printf("[WebSocket] 用户 %d 下线，当前在线人数: %d", client.ID, len(h.Clients))
+		h.mu.Unlock()
 
-		// 广播下线消息
+		// 广播下线消息（在解锁后进行，避免死锁）
 		h.broadcast(&Message{
 			Type:      "status",
 			UserID:    client.ID,
 			Online:    false,
 			Timestamp: getCurrentTimestamp(),
 		})
+	} else {
+		h.mu.Unlock()
 	}
 }
 

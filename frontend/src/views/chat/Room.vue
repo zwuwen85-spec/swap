@@ -38,20 +38,32 @@
               :key="message.id"
               :class="['message-item', message.sender_id === currentUserId ? 'sent' : 'received']"
             >
+              <!-- 对方头像 -->
               <el-avatar
                 v-if="message.sender_id !== currentUserId"
-                :size="36"
-                :src="message.sender?.avatar"
+                :size="40"
+                :src="otherUser.avatar"
                 class="message-avatar"
               >
-                {{ message.sender?.username?.[0] }}
+                {{ (otherUser.nickname || otherUser.username)?.[0] || '?' }}
               </el-avatar>
+
               <div class="message-content">
                 <div class="message-bubble">
                   {{ message.content }}
                 </div>
                 <div class="message-time">{{ formatTime(message.create_time) }}</div>
               </div>
+
+              <!-- 我方头像 -->
+              <el-avatar
+                v-if="message.sender_id === currentUserId"
+                :size="40"
+                :src="userStore.avatar"
+                class="message-avatar my-avatar"
+              >
+                {{ (userStore.username)?.[0] || '我' }}
+              </el-avatar>
             </div>
           </div>
 
@@ -60,19 +72,21 @@
             <el-input
               v-model="messageContent"
               type="textarea"
-              :rows="2"
-              placeholder="输入消息..."
-              @keydown.enter.exact="handleSend"
+              :rows="3"
+              placeholder="请输入消息..."
+              @keydown.enter.exact.prevent="handleSend"
               resize="none"
             />
-            <el-button
-              type="primary"
-              @click="handleSend"
-              :disabled="!messageContent.trim()"
-              :loading="sending"
-            >
-              发送
-            </el-button>
+            <div class="input-actions">
+              <el-button
+                type="primary"
+                @click="handleSend"
+                :disabled="!messageContent.trim()"
+                :loading="sending"
+              >
+                发送(Enter)
+              </el-button>
+            </div>
           </div>
         </div>
       </el-main>
@@ -81,10 +95,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/user'
-import { getMessageList, sendMessage } from '@/api/message'
+import { getMessageList, sendMessage, checkOnline } from '@/api/message'
+import { getUserInfoById } from '@/api/user'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 
@@ -101,11 +116,78 @@ const messageContent = ref('')
 const sending = ref(false)
 const messagesContainer = ref(null)
 
+// 监听全局 WebSocket 传来的最新消息
+watch(() => userStore.latestMessage, (newMsg) => {
+  if (newMsg && (newMsg.sender_id === otherUserId.value || newMsg.receiver_id === otherUserId.value)) {
+    // 将新消息追加到当前聊天窗口
+    messageList.value.push({
+      id: newMsg.id || Date.now(), // WebSocket消息可能没有完整ID，用时间戳兜底
+      sender_id: newMsg.sender_id,
+      receiver_id: newMsg.receiver_id,
+      content: newMsg.content,
+      type: newMsg.type || 1,
+      is_read: 1, // 当前正在聊天界面，视为已读
+      create_time: newMsg.timestamp || Date.now() / 1000
+    })
+    
+    // 乐观扣除全局未读数
+    if (userStore.unreadMessageCount > 0) {
+      userStore.unreadMessageCount -= 1
+    }
+
+    nextTick(() => {
+      scrollToBottom()
+    })
+  }
+})
+
+// 监听全局 WebSocket 传来的最新在线状态
+watch(() => userStore.onlineStatus, (status) => {
+  if (status && status.user_id === otherUserId.value) {
+    isOnline.value = status.online
+  }
+}, { deep: true })
+
+// 监听路由参数变化，确保能重新获取数据
+watch(() => route.params.userId, (newId) => {
+  if (newId) {
+    otherUserId.value = parseInt(newId)
+    initRoom()
+  }
+})
+
+const initRoom = async () => {
+  // 1. 获取对方用户信息
+  try {
+    const userRes = await getUserInfoById(otherUserId.value)
+    if (userRes.code === 0 && userRes.data) {
+      otherUser.value = userRes.data
+    }
+  } catch (err) {
+    console.error('获取对方用户信息失败:', err)
+  }
+
+  // 2. 获取对方在线状态
+  try {
+    const onlineRes = await checkOnline(otherUserId.value)
+    if (onlineRes.code === 0) {
+      isOnline.value = onlineRes.data.is_online
+    }
+  } catch (err) {
+    console.error('获取对方在线状态失败:', err)
+  }
+
+  // 3. 获取消息历史
+  fetchMessages()
+}
+
 // 获取消息列表
 const fetchMessages = async () => {
   try {
     const res = await getMessageList(otherUserId.value)
-    messageList.value = res.data.list
+    // 后端返回的是按时间倒序，为了在聊天窗口正常显示，需要反转为正序（最新在最下）
+    const list = res.data.list ? res.data.list.reverse() : []
+    messageList.value = list
 
     // 滚动到底部
     nextTick(() => {
@@ -200,7 +282,7 @@ const formatTime = (timestamp) => {
 
 onMounted(() => {
   otherUserId.value = parseInt(route.params.userId)
-  fetchMessages()
+  initRoom()
 })
 
 onUnmounted(() => {
@@ -213,12 +295,19 @@ onUnmounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.el-container {
+  height: 100%;
+  overflow: hidden;
 }
 
 .el-header {
   background-color: #409eff;
   color: white;
   padding: 0 20px;
+  flex-shrink: 0;
 }
 
 .header-content {
@@ -256,25 +345,45 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: 0;
-  max-width: 1400px;
+  width: 50%;
+  min-width: 600px;
   margin: 0 auto;
-  width: 100%;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .chat-container {
-  height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   background-color: #f5f7fa;
+  min-height: 0;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.04);
 }
 
 .chat-header {
   display: flex;
   align-items: center;
   gap: 15px;
-  padding: 15px 20px;
+  padding: 15px 30px;
   background: white;
   border-bottom: 1px solid #ebeef5;
+  flex-shrink: 0;
+  position: relative; /* 确保返回按钮可以相对此容器绝对定位 */
+}
+
+.chat-header .el-button {
+  /* 返回按钮固定在最左侧的留白区域中 */
+  position: absolute;
+  left: -5px; /* 利用负距离将其挤出原本的对齐线，保证头像是真正的对齐起点 */
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-header .el-avatar {
+  /* 清除我刚才加的错误 margin-left */
+  margin-left: 0;
 }
 
 .user-info h3 {
@@ -285,29 +394,53 @@ onUnmounted(() => {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 20px 30px;
+  background-color: #f5f7fa;
+}
+
+/* 隐藏滚动条但保留滚动功能 (Webkit浏览器) */
+.messages::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+.messages {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 .message-item {
   display: flex;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   align-items: flex-start;
+  width: 100%;
 }
 
 .message-item.sent {
-  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+
+.message-item.received {
+  justify-content: flex-start;
+}
+
+.message-avatar {
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f0f2f5;
+  margin-top: 2px; /* 使头像与气泡顶部更好地对齐 */
 }
 
 .message-item.received .message-avatar {
-  margin-right: 10px;
+  margin-right: 12px;
 }
 
-.message-item.sent .message-avatar {
-  margin-left: 10px;
+.message-item.sent .my-avatar {
+  margin-left: 12px;
 }
 
 .message-content {
-  max-width: 60%;
+  max-width: 65%;
   display: flex;
   flex-direction: column;
 }
@@ -316,37 +449,68 @@ onUnmounted(() => {
   align-items: flex-end;
 }
 
-.message-bubble {
-  padding: 10px 15px;
-  border-radius: 8px;
-  word-break: break-word;
+.message-item.received .message-content {
+  align-items: flex-start;
 }
 
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 12px;
+  word-break: break-word;
+  font-size: 15px;
+  line-height: 1.5;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* 对方的气泡 */
 .message-item.received .message-bubble {
   background-color: white;
   border: 1px solid #ebeef5;
+  border-top-left-radius: 4px;
+  color: #303133;
 }
 
+/* 我方的气泡 */
 .message-item.sent .message-bubble {
   background-color: #409eff;
   color: white;
+  border-top-right-radius: 4px;
 }
 
 .message-time {
   font-size: 12px;
-  color: #909399;
-  margin-top: 5px;
+  color: #b1b3b8;
+  margin-top: 6px;
+  padding: 0 4px;
 }
 
 .input-area {
-  padding: 15px 20px;
+  padding: 15px 30px; /* 修改为 30px，与上方内容区对齐 */
   background: white;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid #ebeef5; /* 恢复边框 */
   display: flex;
+  flex-direction: column;
   gap: 10px;
+  flex-shrink: 0;
+  box-shadow: none; /* 去除阴影，让其不再显得过于悬浮 */
 }
 
-.input-area .el-textarea {
-  flex: 1;
+.input-area :deep(.el-textarea__inner) {
+  border: none;
+  box-shadow: none;
+  background-color: transparent;
+  padding: 5px 0;
+  resize: none;
+}
+
+.input-area :deep(.el-textarea__inner:focus) {
+  box-shadow: none;
+}
+
+.input-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
 }
 </style>

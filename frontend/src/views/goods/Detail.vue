@@ -8,8 +8,17 @@
           <div class="nav">
             <router-link to="/">首页</router-link>
             <router-link to="/goods">发现</router-link>
-            <router-link v-if="userStore.isLogin" to="/profile">个人中心</router-link>
-            <router-link v-else to="/login">登录</router-link>
+            <template v-if="userStore.isLogin">
+              <router-link to="/chat">
+                <el-badge :value="userStore.unreadMessageCount" :hidden="userStore.unreadMessageCount === 0" :max="99" class="nav-badge">
+                  消息
+                </el-badge>
+              </router-link>
+              <router-link to="/profile">个人中心</router-link>
+            </template>
+            <template v-else>
+              <router-link to="/login">登录</router-link>
+            </template>
           </div>
         </div>
       </el-header>
